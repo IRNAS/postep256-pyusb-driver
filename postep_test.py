@@ -5,18 +5,143 @@ import platform
 import usb.core
 import usb.backend.libusb1
 import time
+import struct
 
 VENDOR_ID = 0x1dc3
 PRODUCT_ID = 0x0641
 OUT_ENPOINT = 0x01
 IN_ENPOINT = 0x81
 
-def write_to_postep(dev):
+def postep_enable_rt_stream(dev):
 
     data_list = [0] * 64
+    # request data streaming
+    data_list[1] = 0xA0
+    # write to driver
+    write_to_postep(dev,data_list)
+    # request data
+    received = read_from_postep(dev, 500)
+    # check if response is valid
+    if(received[0]!=0x02):
+        return False
+    return True
+
+def postep_read_stream(dev):
+    received = read_from_postep(dev, 500)
+    #parse data
+    #postep_stream["endswitch"]=received[6]
+    print(struct.unpack('>III', received[20:32]))
+
+def postep_run_sleep(dev,run):
+
+    data_list = [0] * 64
+    # request data streaming
+    data_list[1] = 0xA1
+    if run:
+        data_list[20] = 0x01
+    # write to driver
+    write_to_postep(dev,data_list)
+    # request data
+    received = read_from_postep(dev, 500)
+    # check if response is valid
+    if(received[0]!=0x02):
+        return False
+    return True
+
+def postep_move_speed(dev,speed,direction="cw"):
+
+    data_list = [0] * 64
+    # request data streaming
+    data_list[1] = 0x90
+    #480000 kHz/step_value = speed
+    if speed is not 0:
+        step_values=480000/speed
+    else:
+        step_values=480000
+    data_list[20:24]=struct.pack('<I', int(step_values))
+    if direction == "acw":
+        data_list[24]=0x01
+    # write to driver
+    write_to_postep(dev,data_list)
+    # request data
+    received = read_from_postep(dev, 500)
+    # check if response is valid
+    if(received[15]!=0x90):
+        return False
+    return True
+
+def postep_move_trajectory(dev,final_position,max_speed,max_accel,max_decel,direction,endsw=None):
+
+    data_list = [0] * 64
+    data_list[1] = 0xb1
+    #enable autorun
+    data_list[2]= 0x01<<1
+    # Set trajectory final position
+    data_list[20:23]=struct.pack('<I', final_position)
+    # Set trajectory max speed
+    data_list[24:27]=struct.pack('<I', max_speed)
+    # Set traject. max acceleration
+    data_list[28:31]=struct.pack('<I', max_accel)
+    # Set traject. max deceleration
+    data_list[32:35]=struct.pack('<I', max_decel)
+    # Set InvDir<<2|NCSw<<1| SwEn
+    if direction == "acw":
+        data_list[36]=0b00000100
+    if endsw is not None:
+        data_list[36]=data_list[36]|0b00000001
+        if endsw == "nc":
+            data_list[36]=data_list[36]|0b00000010
+    # write to driver
+    write_to_postep(dev,data_list)
+    # request data
+    received = read_from_postep(dev, 500)
+    # check if response is valid
+    if(received[15]!=0xb1):
+        return False
+    return True
+
+def postep_stop_trajectory(dev):
+
+    data_list = [0] * 64
+    data_list[1] = 0xb2
+    
+    # write to driver
+    write_to_postep(dev,data_list)
+    # request data
+    received = read_from_postep(dev, 500)
+    # check if response is valid
+    if(received[0]!=0x02):
+        return False
+    return True
+
+def postep_zero_trajectory(dev):
+
+    data_list = [0] * 64
+    data_list[1] = 0xb3
+    
+    # write to driver
+    write_to_postep(dev,data_list)
+    # request data
+    received = read_from_postep(dev, 500)
+    # check if response is valid
+    if(received[0]!=0x02):
+        return False
+    return True
+
+def postep_system_reset(dev):
+
+    data_list = [0] * 64
+    data_list[1] = 0x02
+    
+    # write to driver
+    write_to_postep(dev,data_list)
+
+def write_to_postep(dev,data_list):
+
+    #data_list = [0] * 64
     #for run/sleep send data[1] = 0xA1
     #data_list[0] = 0x01
-    data_list[1] = 0x90
+    #data_list[1] = 0x90
 
     data = bytearray(data_list)
     print("Writing command: {}".format(bytes(data).hex()))
@@ -35,6 +160,7 @@ def read_from_postep(dev, timeout):
     except usb.core.USBError as e:
         print ("Error reading response: {}".format(e.args))
         return None
+    print("Receive command: {}".format(bytes(data).hex()))
     if len(data) == 0:
         return None
 
@@ -78,8 +204,21 @@ device.set_configuration()
 usb.util.claim_interface(device, 0)
 
 # Write
-bytes_written=write_to_postep(device)
-print("bytes_written: {}".format(bytes_written))
+#bytes_written=write_to_postep(device)
+#print("bytes_written: {}".format(bytes_written))
+
+##postep_system_reset(device)
+postep_enable_rt_stream(device)
+postep_run_sleep(device,True)
+#postep_move_speed(device,100,"cw")
+#postep_stop_trajectory(device)
+#time.sleep(1)
+#postep_move_speed(device,0,"acw")
+postep_move_trajectory(device,10000,10000,10000,10000,"cw")
+while True:
+    postep_read_stream(device)
+    time.sleep(1)
+
 
 # Read
 data = read_from_postep(device, 500) # read from device with a 200 millisecond timeout
