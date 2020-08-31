@@ -2,11 +2,12 @@ import os
 import sys
 import platform
 import usb.core
+import usb.util
 import usb.backend.libusb1
 import time
 import struct
 import logging
-#os.environ['PYUSB_DEBUG'] = 'debug' for extra debugging of USB
+os.environ['PYUSB_DEBUG'] = 'debug' #for extra debugging of USB
 
 VENDOR_ID = 0x1dc3
 PRODUCT_ID = 0x0641
@@ -25,13 +26,17 @@ class PoStep256USB(object):
         if platform.system() == 'Windows':
             # required for Windows only
             # libusb DLLs from: https://sourcefore.net/projects/libusb/
+            
             arch = platform.architecture()
             if arch[0] == '32bit':
                 backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb/x86/libusb-1.0.dll") # 32-bit DLL, select the appropriate one based on your Python installation
+                
             elif arch[0] == '64bit':
                 backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb/x64/libusb-1.0.dll") # 64-bit DLL
 
             self.device = usb.core.find(backend=backend, idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+            
+            
         elif platform.system() == 'Linux':
             self.device = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
 
@@ -48,6 +53,7 @@ class PoStep256USB(object):
             logging.error("Driver not found, make sure it is attached.")
             return
 
+        #print(self.device)
         self.device.reset()
 
         # Set the active configuration. With no arguments, the first configuration will be the active one
@@ -62,7 +68,7 @@ class PoStep256USB(object):
         self.max_decel = 1000
         self.endsw = None
     
-    def __del__(self): 
+    def __del__(self):
         if self.device is not None:
             usb.util.release_interface(self.device, 0)
 

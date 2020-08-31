@@ -58,7 +58,7 @@ wait_for_position()
 
 postep.move_to(0)
 wait_for_position()
-postep.move_speed(100,"acw")
+#postep.move_speed(100,"acw")
 
 
 while True:
