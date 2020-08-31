@@ -9,8 +9,8 @@ Features available currently allow for the position control of the attached moto
 
 ### Installation
 * See [this repo](https://github.com/pyusb/pyusb#installing) for installation of `pyusb`
-
 * download `libusb DLL version 1.0` from the link in the code comment (line 28). You can use [this link](https://www.dll4free.com/libusb-1.0.dll.html) if you happen to run into trouble with the original one.
+* save `libusb-1.0.dll` into `C:/Windows/System/libusb/x64` folder (or `C:/Windows/System32/libusb/x86` if you are using a 32-bit version)
 
 ### Test run
 * If the first test run fails in backend recognition, you can replace line 37 in `postep256usb.py` with full path to your DLL 1.0 library.
