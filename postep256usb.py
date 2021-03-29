@@ -184,7 +184,7 @@ class PoStep256USB(object):
         #do not enable autorun
         data_list[2]= 0b00000000
         # Set trajectory final position
-        data_list[20:24]=struct.pack('<I', final_position)
+        data_list[20:24]=struct.pack('<i', final_position)
         # Set trajectory max speed
         data_list[24:28]=struct.pack('<I', max_speed)
         # Set traject. max acceleration
