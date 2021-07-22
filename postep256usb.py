@@ -78,6 +78,40 @@ class PoStep256USB(object):
             logging.info("Kernel driver reattached.")
 
 
+    def get_device_info(self):
+        data_list = [0] * 64
+
+        data_list[0] = 0x00
+        data_list[1] = 0x01
+        data_list[63] = 0x00
+
+        self.write_to_postep(data_list)
+        # request data with 500ms tuimeout
+        received = self.read_from_postep(500)
+        print(list(received))
+
+        received = list(received)
+
+        bl_fw_version = (received[1] << 8) | received[2]
+        print(f"Bootloader fw version: {bl_fw_version}")
+
+        app_fw_version = (received[3] << 8) | received[4]
+        print(f"App fw version: {app_fw_version}")
+
+        supply_voltage = (received[8] * 256 + received[9]) * 0.072
+        print(f"Supply voltage: {supply_voltage}")
+
+        temperature = (received[44] * 256 + received[45]) * 0.125
+        print(f"Device temperature: {temperature}")
+
+        status = received[46]  # 0x01 - sleep, 0x02 - active, 0x03 - idle, 0x04 - overheated, 0x05 - pwm mode
+        print(f"Device status: {status}")
+        # check if response is valid
+        # if(received[0]!=0x02):
+        #     logging.error("Bad response: {}".format(received[0]))
+        #     return False
+        # return True
+
     def enable_rt_stream(self):
 
         data_list = [0] * 64
@@ -150,6 +184,39 @@ class PoStep256USB(object):
             return False
         return True
 
+    def set_run(self, run):
+
+        data_list = [0] * 64
+        data_list[1] = 0xA1
+        data_list[20] = 0x01 if run else 0x00
+
+        self.write_to_postep(data_list)
+
+        received = self.read_from_postep(500)
+        print(list(received))
+        print(f"Byte at 15: {received[15]}")
+
+
+    def set_pwm(self, duty1_ccw, duty2_ccw, duty1_acw, duty2_acw,):
+
+        data_list = [0] * 64
+        data_list[1] = 0xB0
+        data_list[20] = 0
+        data_list[21] = 0
+        data_list[22] = 0
+        data_list[23] = 24
+
+        data_list[45] = duty1_ccw
+        data_list[46] = duty1_acw
+        data_list[47] = duty2_ccw
+        data_list[48] = duty2_acw
+
+        self.write_to_postep(data_list)
+
+        received = self.read_from_postep(500)
+        print(list(received))
+        print(f"Byte at 15: {received[15]}")
+
     def move_config(self,max_speed,max_accel,max_decel,endsw=None):
         '''
         Configure motion parameters
@@ -197,15 +264,24 @@ class PoStep256USB(object):
             if endsw == "nc":
                 data_list[36]=data_list[36]|0b00000010
         # write to driver
-        logging.info("postep_move_trajectory to {} speed {} accel {} decel {} endsw {}".format(final_position,max_speed,max_accel,max_decel,endsw))
-        self.write_to_postep(data_list)
-        # request data
-        received = self.read_from_postep(500)
-        # check if response is valid
-        if(received[15]!=0xb1):
-            logging.error("Bad response: {}".format(received[15]))
-            return False
-        return True
+        error = False
+        for x in range(3):
+            error = True
+            try:
+                logging.info("postep_move_trajectory to {} speed {} accel {} decel {} endsw {}".format(final_position,max_speed,max_accel,max_decel,endsw))
+                self.write_to_postep(data_list)
+                # request data
+                received = self.read_from_postep(500)
+                # check if response is valid
+                if(received[15]!=0xb1):
+                    logging.error("Bad response: {}".format(received[15]))
+                    
+                else:
+                    error = False
+                    break
+            except:
+                logging.error("Bad response")
+        return error
 
     def move_to_stop(self):
         #stop trajectory
@@ -267,14 +343,18 @@ class PoStep256USB(object):
         return num_bytes_written
 
     def read_from_postep(self, timeout):
-        try:
-            data = self.device.read(IN_ENPOINT, 64, timeout)
-        except usb.core.USBError as e:
-            print ("Error reading response: {}".format(e.args))
-            return None
-        logging.debug("Receive command: {}".format(bytes(data).hex()))
-        if len(data) == 0:
-            logging.error("No data received")
-            return None
-
+        data = None
+        for x in range(3):
+            try:
+                data = self.device.read(IN_ENPOINT, 64, timeout)
+            except usb.core.USBError as e:
+                print ("Error reading response: {}".format(e.args))
+                continue
+            logging.debug("Receive command: {}".format(bytes(data).hex()))
+            if len(data) == 0:
+                logging.error("No data received")
+                data = None
+                continue
+            else:
+                break
         return data
