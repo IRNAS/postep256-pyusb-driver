@@ -22,11 +22,15 @@ if postep.device is None:
     print("Driver not found, exiting.")
     sys.exit(0)
 
-postep.get_device_info()
+# postep.get_device_info()
+postep.read_configuration()
 
-time.sleep(1)
-print(f"Setting pwm")
-postep.set_pwm(100, 100, 0, 0)
+postep.change_configuration()
+
+postep.read_configuration()
+# time.sleep(1)
+# print(f"Setting pwm")
+# postep.set_pwm(100, 100, 0, 0)
 # enable streaming of real-time data
 # postep.enable_rt_stream()
 # set the motor to run or sleep

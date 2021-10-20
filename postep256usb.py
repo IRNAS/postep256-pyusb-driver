@@ -62,6 +62,8 @@ class PoStep256USB(object):
         # Claim interface 0
         usb.util.claim_interface(self.device, 0)
 
+        self.configuration = self.read_configuration()
+
         # initialize motor parameter
         self.max_speed = 1000
         self.max_accel = 1000
@@ -196,6 +198,54 @@ class PoStep256USB(object):
         print(list(received))
         print(f"Byte at 15: {received[15]}")
 
+    def read_configuration(self):
+        data_list = [0] * 64
+        data_list[1] = 0x88
+
+        self.write_to_postep(data_list)
+        received = self.read_from_postep(500)
+        print(list(received))
+
+        received = list(received)
+
+        velocity_max = int.from_bytes(received[24:28], byteorder="little")
+        print(f"raw bytes velocity: {received[24:28]}")
+        print(f"Velocity max: {velocity_max}")
+
+        acceleration = int.from_bytes(received[28:32], byteorder="little")
+        print(f"Raw bytes acceleration: {received[28:32]}")
+        print(f"Acceleration: {acceleration}")
+
+        deceleration = int.from_bytes(received[32:36], byteorder="little")
+        print(f"Raw bytes deceleration: {received[32:36]}")
+        print(f"Deceleration: {deceleration}")
+
+        settings_byte = received[36]
+        print(f"Settings byte: {settings_byte}")
+
+        self.current_settings = received  # store settings as a list
+
+    def change_configuration(self, velocity=10000, acceleration=2000, deceleration=2000, settings=0):
+        data_list = [0] * 64
+        data_list[1] = 0x87
+
+        # set velocity
+        data_list[24:28] = list(velocity.to_bytes(4, "little"))
+
+        # set acceleration
+        data_list[28:32] = list(acceleration.to_bytes(4, "little"))
+
+        # set deceleration
+        data_list[32:36] = list(deceleration.to_bytes(4, "little"))
+
+        # set settings
+        data_list[36] = settings
+
+        self.write_to_postep(data_list)
+
+        received = self.read_from_postep(500)
+        print(list(received))
+        print(f"Byte at 15: {received[15]}")
 
     def set_pwm(self, duty1_ccw, duty2_ccw, duty1_acw, duty2_acw,):
 
