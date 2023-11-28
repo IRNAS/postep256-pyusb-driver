@@ -14,6 +14,12 @@ def wait_for_position():
             break
         time.sleep(0.1)
 
+# Discover devices if multiple are connected
+devices = PoStep256USB.discover_devices()
+print(f"Discovered devices: {devices}")
+# Here the user should specify which serial number to use
+# postep = PoStep256USB(logging.INFO, "1700C01A-AECAA109-56CFA5BE-F5001980")
+
 postep = PoStep256USB(logging.INFO)
 # defined to show only errors as log values, set to logging.INFO or logging.DEBUG for more
 

@@ -16,39 +16,29 @@ IN_ENPOINT = 0x81
 
 class PoStep256USB(object):
     """PoStep256USB class"""
-    def __init__(self,log_level=logging.INFO):
+    def __init__(self,log_level=logging.INFO,serial_number=None):
         self.was_kernel_driver_active = False
         self.device = None
 
         logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%d/%m/%Y %H:%M:%S', level=log_level)
         
         logging.info("Detected platform {} with arch {}".format(platform.system(),platform.architecture()[0]))
-        if platform.system() == 'Windows':
-            # required for Windows only
-            # libusb DLLs from: https://sourcefore.net/projects/libusb/
-            
-            arch = platform.architecture()
-            if arch[0] == '32bit':
-                backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb/x86/libusb-1.0.dll") # 32-bit DLL, select the appropriate one based on your Python installation
-                
-            elif arch[0] == '64bit':
-                backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb/x64/libusb-1.0.dll") # 64-bit DLL
 
-            self.device = usb.core.find(backend=backend, idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
-            
-            
-        elif platform.system() == 'Linux':
+        if serial_number is None:
+            # Select the first device on the list
+            logging.info("Serial number is not specified. Selecting first discovered device.")
             self.device = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
-
-
-            # if the OS kernel already claimed the device
-            if self.device is not None and self.device.is_kernel_driver_active(0) is True:
-                # tell the kernel to detach
-                self.device.detach_kernel_driver(0)
-                self.was_kernel_driver_active = True
         else:
-            self.device = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+            # Select the device with the given serial number
+            logging.info(f"Selected device serial number: {serial_number}.")
+            self.device = usb.core.find(idVendor=VENDOR_ID, idProduct=PRODUCT_ID, serial_number=serial_number)
 
+        # if the OS kernel already claimed the device
+        if self.device is not None and self.device.is_kernel_driver_active(0) is True:
+            # tell the kernel to detach
+            self.device.detach_kernel_driver(0)
+            self.was_kernel_driver_active = True
+        
         if self.device is None:
             logging.error("Driver not found, make sure it is attached.")
             return
@@ -69,6 +59,33 @@ class PoStep256USB(object):
         self.max_accel = 1000
         self.max_decel = 1000
         self.endsw = None
+
+    @staticmethod
+    def discover_devices():
+        device_list = []
+
+        if platform.system() == 'Windows':
+            # required for Windows only
+            # libusb DLLs from: https://sourcefore.net/projects/libusb/
+            
+            arch = platform.architecture()
+            if arch[0] == '32bit':
+                backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb/x86/libusb-1.0.dll") # 32-bit DLL, select the appropriate one based on your Python installation
+                
+            elif arch[0] == '64bit':
+                backend = usb.backend.libusb1.get_backend(find_library=lambda x: "libusb/x64/libusb-1.0.dll") # 64-bit DLL
+
+            devices = usb.core.find(find_all= True, backend=backend, idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+            
+            
+        else:
+            # custom_match=lambda d: d.idProduct=PRODUCT_ID and d.idvendor=VENDOR_ID
+            devices = usb.core.find(find_all=True, idVendor=VENDOR_ID, idProduct=PRODUCT_ID)
+            for d in devices:
+                device_list.append(usb.util.get_string( d, d.iSerialNumber))
+        
+        return device_list
+
     
     def __del__(self):
         if self.device is not None:
